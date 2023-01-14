@@ -22,7 +22,7 @@ For a complete walkthrough of this repository,  link:https://graphacademy.neo4j.
 }
 ----
 
-* Start the project
+* Start the project 
 
 ----
 go run ./cmd/neoflix
