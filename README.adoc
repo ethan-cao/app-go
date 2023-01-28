@@ -24,6 +24,8 @@ For a complete walkthrough of this repository,  link:https://graphacademy.neo4j.
 
 * Start the project 
 
+Database: ./go-app-db.dump
+
 ----
 go run ./cmd/neoflix
 ----

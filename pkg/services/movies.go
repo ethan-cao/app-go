@@ -1,9 +1,11 @@
 package services
 
 import (
+	"fmt"
 	"math/rand"
 
 	"github.com/neo4j-graphacademy/neoflix/pkg/fixtures"
+	"github.com/neo4j-graphacademy/neoflix/pkg/ioutils"
 
 	"github.com/neo4j-graphacademy/neoflix/pkg/routes/paging"
 	"github.com/neo4j/neo4j-go-driver/v4/neo4j"
@@ -43,16 +45,72 @@ func NewMovieService(loader *fixtures.FixtureLoader, driver neo4j.Driver) MovieS
 // tag::all[]
 func (ms *neo4jMovieService) FindAll(userId string, page *paging.Paging) (_ []Movie, err error) {
 	// TODO: Open an Session
-	// TODO: Execute a query in a new Read Transaction
-	// TODO: Get a list of Movies from the Result
-	// TODO: Close the session
+	session := ms.driver.NewSession(neo4j.SessionConfig{})
 
-	popularMovies, err := ms.loader.ReadArray("fixtures/popular.json")
+	defer func() {
+		err = ioutils.DeferredClose(session, err)
+	}()
+
+	// TODO: Execute a query in a new Read Transaction
+	// Execute a query in a new Read Transaction
+	results, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		// Get an array of IDs for the User's favorite movies
+
+		// The tx object can be used to run as many queries as necessary within the transaction.
+		//Running multiple queries within a transaction limits the amount of work the server has to do when writing data,
+		// but you must also be careful not to overload the server within a single transaction
+		// otherwise you may experience out-of-memory errors.
+		favorites, err := getUserFavorites(tx, userId)
+		if err != nil {
+			return nil, err
+		}
+
+		// Retrieve a list of movies
+		sort := page.Sort()
+		result, err := tx.Run(fmt.Sprintf(`
+			MATCH (m:Movie)
+			WHERE m.`+"`%[1]s`"+` IS NOT NULL
+			RETURN m {
+				.*,
+				favorite: m.tmdbId IN $favorites
+			} AS movie
+			ORDER BY m.`+"`%[1]s`"+` %s
+			SKIP $skip
+			LIMIT $limit
+	`, sort, page.Order()), map[string]interface{}{
+			"skip":      page.Skip(),
+			"limit":     page.Limit(),
+			"favorites": favorites,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Get a list of Movies from the Result
+		records, err := result.Collect()
+		if err != nil {
+			return nil, err
+		}
+		var results []map[string]interface{}
+		for _, record := range records {
+			movie, _ := record.Get("movie")
+			results = append(results, movie.(map[string]interface{}))
+		}
+		return results, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	return fixtures.Slice(popularMovies, page.Skip(), page.Limit()), err
+	return results.([]Movie), nil
+
+	// popularMovies, err := ms.loader.ReadArray("fixtures/popular.json")
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return fixtures.Slice(popularMovies, page.Skip(), page.Limit()), err
 }
 
 // end::all[]
@@ -178,7 +236,29 @@ func (ms *neo4jMovieService) FindAllBySimilarity(id string, userId string, page 
 // the user has added to their 'My Favorites' list.
 // tag::getUserFavorites[]
 func getUserFavorites(tx neo4j.Transaction, userId string) ([]string, error) {
-	return nil, nil
+	// If userId is not defined, return nil
+	if userId == "" {
+		return nil, nil
+	}
+
+	// Find Favorites for User
+	results, err := tx.Run(`
+		MATCH (u:User {userId: $userId})-[:HAS_FAVORITE]->(m)
+		RETURN m.tmdbId AS id
+	`, map[string]interface{}{"userId": userId})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Create an array of IDs
+	var ids []string
+	for results.Next() {
+		record := results.Record()
+		id, _ := record.Get("id")
+		ids = append(ids, id.(string))
+	}
+	return ids, nil
 }
 
 // end::getUserFavorites[]
