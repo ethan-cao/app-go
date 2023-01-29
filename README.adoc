@@ -28,7 +28,7 @@ Neo4j 4.4
 
 Database: data/go-app-db.dump
 
-Reduced database: data/golang-app-movie.cypher (no need to add constraint)
+Reduced database: data/golang-app-movie.cypher (no need to add index/constraint)
 
 
 ----
