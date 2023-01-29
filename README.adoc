@@ -24,9 +24,9 @@ For a complete walkthrough of this repository,  link:https://graphacademy.neo4j.
 
 * Start the project 
 
-Neo4j 4.4
-Database: data/go-app-db.dump
-Reduced database: data/golang-app-movie.cypher (no need to add constraint)
+Neo4j 4.4  
+Database: data/go-app-db.dump  
+Reduced database: data/golang-app-movie.cypher (no need to add constraint)  
 
 ----
 go run ./cmd/neoflix
